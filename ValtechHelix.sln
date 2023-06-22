@@ -1,0 +1,63 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30105.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Solution Files", "_Solution Files", "{FE951C1D-8EC7-419E-A7A2-A0175125BCBB}"
+	ProjectSection(SolutionItems) = preProject
+		.env = .env
+		init.ps1 = init.ps1
+		README.md = README.md
+		sitecore.json = sitecore.json
+		up.ps1 = up.ps1
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Environment", "Environment", "{B04642CD-8FAB-4282-8C7E-E79942FC3ABB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Foundation", "Foundation", "{324D4FE7-86EF-43A2-A466-21198CB856AD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Project", "Project", "{94C82DDA-FE0D-4EBF-AEAA-81E13CB07FE5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Feature", "Feature", "{F1800335-D16A-4FB6-B213-1885963E283D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Identity", "Identity", "{F8344A1C-8F4D-4AE1-8A8A-CC01BECA3BED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ValtechHelix.Environment.Identity", "src\Environment\Identity\ValtechHelix.Environment.Identity.csproj", "{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sitecore", "Sitecore", "{2B8DA2E9-C9AA-422F-894E-7345FD1ADCF1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ValtechHelix.Environment.Sitecore", "src\Environment\Sitecore\ValtechHelix.Environment.Sitecore.csproj", "{2424E8B4-0111-4306-9603-0D2702EA60C5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DefaultSite", "DefaultSite", "{23D520DF-EA24-4A8F-BA6D-09908960F719}"
+	ProjectSection(SolutionItems) = preProject
+		src\Project\DefaultSite\code\DefaultSite.module.json = src\Project\DefaultSite\code\DefaultSite.module.json
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2424E8B4-0111-4306-9603-0D2702EA60C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2424E8B4-0111-4306-9603-0D2702EA60C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2424E8B4-0111-4306-9603-0D2702EA60C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2424E8B4-0111-4306-9603-0D2702EA60C5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F8344A1C-8F4D-4AE1-8A8A-CC01BECA3BED} = {B04642CD-8FAB-4282-8C7E-E79942FC3ABB}
+		{F8DD20AE-80CA-4958-9467-E24AA81AB2BA} = {F8344A1C-8F4D-4AE1-8A8A-CC01BECA3BED}
+		{2B8DA2E9-C9AA-422F-894E-7345FD1ADCF1} = {B04642CD-8FAB-4282-8C7E-E79942FC3ABB}
+		{2424E8B4-0111-4306-9603-0D2702EA60C5} = {2B8DA2E9-C9AA-422F-894E-7345FD1ADCF1}
+		{23D520DF-EA24-4A8F-BA6D-09908960F719} = {94C82DDA-FE0D-4EBF-AEAA-81E13CB07FE5}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F3377439-FD7A-4F3E-8011-06175E0E3100}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+
+configMapGenerator:
+  - name: environment-config-map
+    env: config.properties
+
+patches:
+  - path: secretproviderclass.yaml
+  - path: ./ingress/cd.yaml
+  - path: ./ingress/cm.yaml
+  - path: ./ingress/id.yaml
+  - path: podid.yaml
+    target:
+      kind: Deployment
+  # solr
+  - path: ./solr/ci.solr.volume.claimname.patch.yaml
+    target:
+      kind: Deployment
+      name: solr
+      version: v1
+  - path: ./solr/ci.solr-pvc.metadata.name.patch.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: solr-data
+      version: v1
+  - path: ./resources/cd.yaml
+
+patchesStrategicMerge:
+- |-
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: mssql
+  $patch: delete
+- |-
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: mssql
+  $patch: delete
+- |-
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: sql-data
+  $patch: delete

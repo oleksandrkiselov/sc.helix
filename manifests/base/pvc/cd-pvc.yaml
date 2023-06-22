@@ -1,0 +1,32 @@
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: submit-queue
+provisioner: kubernetes.io/azure-file
+parameters:
+  skuName: Standard_LRS
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: submit-queue
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: submit-queue
+  resources:
+    requests:
+      storage: 10Gi
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: submit-queue
+# spec:
+#   accessModes:
+#     - ReadWriteMany
+#   storageClassName: managed-premium
+#   resources:
+#     requests:
+#       storage: 10Gi

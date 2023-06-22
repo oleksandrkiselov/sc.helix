@@ -1,0 +1,192 @@
+name: Deploy to Kubernetes
+
+# Controls when the workflow will run
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number to be used'
+        default: '0.0.2'
+        required: true
+        type: string
+      build-images:
+        description: 'Should images be built?'
+        default: false
+        required: false
+        type: boolean
+      environment:
+        description: 'Which environment to deploy to?'
+        type: environment
+        required: true
+        default: Development
+
+env:
+  CONTAINER_REGISTRY: ghcr.io
+  PROJECT_NAME: valtechhelix
+  ORGANIZATION_NAME: eng-valtech
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Job to build Docker Images
+  # Note that we made the other jobs dependent on this one, so in order to skip building of images of not needed we put if statements on all the steps instead of the job itself
+  build-images:
+    name: Build Docker Images
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout repo
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        uses: actions/checkout@v3.0.1
+        
+      # Build the images based of the specified docker-compose files
+      - name: Build Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: docker-compose --env-file '.env.github' -f .\docker-compose.xp1.yml -f .\docker-compose.xp1.override.yml build -m 8GB
+        env:
+          COMPOSE_PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          VERSION: ${{ github.event.inputs.version }}
+          BUILD_CONFIGURATION: Release
+
+      # Login to Docker Container Registry
+      - name: Docker Login
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        uses: docker/login-action@v2.0.0
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Retag previously built images with the repository and version tag
+      - name: Tag Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: |
+          docker tag ${{ env.PROJECT_NAME }}-xp1-solr-init:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-solr-init:${{ github.event.inputs.version }}
+          docker tag ${{ env.PROJECT_NAME }}-mssql-developer:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-mssql-developer:${{ github.event.inputs.version }}
+          docker tag ${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }}
+          docker tag ${{ env.PROJECT_NAME }}-xp1-cd:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cd:${{ github.event.inputs.version }}
+          docker tag ${{ env.PROJECT_NAME }}-id:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-id:${{ github.event.inputs.version }}
+          docker tag ${{ env.PROJECT_NAME }}-xp1-cm:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cm:${{ github.event.inputs.version }}
+
+      # Push the tagged images to the registry
+      - name: Push Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: |
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-solr-init:${{ github.event.inputs.version }}
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-mssql-developer:${{ github.event.inputs.version }}
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }}
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cd:${{ github.event.inputs.version }}
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-id:${{ github.event.inputs.version }}
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cm:${{ github.event.inputs.version }}
+
+  # Job to build Kubernetes manifests using Kustomize
+  build-manifests:
+    name: Build Kubernetes Manifests
+    runs-on: ubuntu-latest
+    needs: [build-images]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Update the images used for the external resources
+      - name: Update external images
+        working-directory: './manifests/base/external'
+        run: |
+          kustomize edit set image sitecore-mssql=${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-mssql-developer:${{ github.event.inputs.version }}
+
+      # Update the images used for the services resources
+      - name: Update services images
+        working-directory: './manifests/base/services'
+        run: |
+          kustomize edit set image sitecore-cd=${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cd:${{ github.event.inputs.version }}
+          kustomize edit set image sitecore-id=${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-id:${{ github.event.inputs.version }}
+          kustomize edit set image sitecore-cm=${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-cm:${{ github.event.inputs.version }}
+
+      # Runs Kustomize to create manifests file of all the base resources
+      - name: Kustomize build base
+        uses: azure/k8s-bake@v2.1
+        with:
+          renderEngine: 'kustomize'
+          kustomizationPath: './manifests/base'
+          kubectl-version: latest
+        id: base
+
+      # Upload the output file as workflow artifact
+      - name: Upload base manifest
+        uses: actions/upload-artifact@v3.0.0
+        with:
+          name: 'base manifests'
+          path: ${{ steps.base.outputs.manifestsBundle }}
+
+      # Copy base manifests to environments folder
+      - name: Copy base manifest
+        run: |
+          cp ${{ steps.base.outputs.manifestsBundle }} ./manifests/environments/base/base.yaml
+
+      # Runs Kustomize to create manifests file for the development environment
+      - name: Kustomize build development environment
+        uses: azure/k8s-bake@v2.1
+        with:
+          renderEngine: 'kustomize'
+          kustomizationPath: './manifests/environments/development'
+          kubectl-version: latest
+        id: development
+
+      # Upload the output file as workflow artifact
+      - name: Upload development manifest
+        uses: actions/upload-artifact@v3.0.0
+        with:
+          name: 'development manifests'
+          path: ${{ steps.development.outputs.manifestsBundle }}
+  
+  # Job to deploy previously built manifest to Kubernetes
+  deploy:
+    environment: ${{ github.event.inputs.environment }}
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [build-manifests]
+
+    steps:
+      # Download the manifest from the artifacts of the previous Job
+      - name: Download a Development manifests
+        uses: actions/download-artifact@v3.0.0
+        with:
+          # Artifact name
+          name: 'development manifests'
+          # Destination path
+          path: './manifests'
+
+      # Login to Azure CLI
+      - name: Azure Login
+         uses: azure/login@v1
+         with:
+           creds: '${{ secrets.AZURE_CREDENTIALS }}'
+
+      # Get credentials and set K8S Cluster context
+      - name: Gets K8s context
+        uses: azure/aks-set-context@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.CLUSTER_NAME }}
+
+      # Create a secret for Kubernetes to be able to pull images from the GitHub Container Registry
+      - name: Set imagePullSecret
+        uses: Azure/k8s-create-secret@v2.1
+        with:
+          namespace: 'development'
+          secret-type: 'kubernetes.io/dockerconfigjson'
+          secret-name: 'cr-secret'
+          data: ${{ secrets.CR_PULL_SECRET }}
+        id: create-secret
+
+      # Deploys application based on manifest files from the artifacts
+      - name: Deploy application
+        uses: Azure/k8s-deploy@v3.1
+        with:
+          namespace: 'development'
+          action: deploy
+          manifests: './manifests'
+          imagepullsecrets: |
+            cr-secret

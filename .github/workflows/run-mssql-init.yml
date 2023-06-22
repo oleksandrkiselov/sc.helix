@@ -1,0 +1,169 @@
+name: Run MSSQL Init
+
+# Controls when the workflow will run
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number to be used'
+        default: '0.0.2'
+        required: true
+        type: string
+      build-images:
+        description: 'Should images be built?'
+        default: false
+        required: false
+        type: boolean
+      environment:
+        description: 'Which environment to deploy to?'
+        type: environment
+        required: true
+        default: Development
+
+env:
+  CONTAINER_REGISTRY: ghcr.io
+  PROJECT_NAME: valtechhelix
+  ORGANIZATION_NAME: eng-valtech
+
+jobs:
+  # Job to build Docker Images
+  # Note that we made the other jobs dependent on this one, so in order to skip building of images of not needed we put if statements on all the steps instead of the job itself
+  build-images:
+    name: Build Docker Image
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout repo
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        uses: actions/checkout@v3.0.1
+        
+      # Build a single image from the specified docker-compose files
+      - name: Build Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: docker-compose --env-file '.env.github' -f .\docker-compose.xp1.yml -f .\docker-compose.xp1.override.yml build -m 8GB mssql-init
+        env:
+          COMPOSE_PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          VERSION: ${{ github.event.inputs.version }}
+          BUILD_CONFIGURATION: Release
+
+      # Login to Docker Container Registry
+      - name: Docker Login
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        uses: docker/login-action@v2.0.0
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Retag previously built images with the repository and version tag
+      - name: Tag Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: |
+          docker tag ${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }} ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }}
+
+      # Push the tagged images to the registry
+      - name: Push Images
+        if: ${{ github.event.inputs.build-images == 'true' }}
+        run: |
+          docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }}
+
+  # Job to build Kubernetes manifests using Kustomize
+  build-manifests:
+    name: Build Kubernetes Manifests
+    runs-on: ubuntu-latest
+    needs: [build-images]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Copy the single manifest file to a temporary directory
+      - name: Copy init manifest
+        run: |
+          mkdir ./manifests/temp
+          cp ./manifests/base/init/mssql-init.yaml ./manifests/temp/mssql-init.yaml
+
+      # Create a new Kustomization file to overwrite the image used in the init Job
+      - name: Create kustomize file
+        working-directory: './manifests/temp'
+        run: |
+          kustomize create --resources mssql-init.yaml
+          kustomize edit set image sitecore-mssql-init=${{ env.CONTAINER_REGISTRY }}/${{ env.ORGANIZATION_NAME}}/${{ env.PROJECT_NAME }}-xp1-mssql-init:${{ github.event.inputs.version }}
+      
+      # Runs Kustomize to create manifest files
+      - name: Kustomize build init
+        uses: azure/k8s-bake@v2.1
+        with:
+          renderEngine: 'kustomize'
+          kustomizationPath: './manifests/temp'
+          kubectl-version: latest
+        id: init
+
+      # Upload the output file as workflow artifact
+      - name: Upload init manifest
+        uses: actions/upload-artifact@v3.0.0
+        with:
+          name: 'init manifests'
+          path: ${{ steps.init.outputs.manifestsBundle }}
+  
+  # Job to deploy previously built manifest to Kubernetes
+  deploy:
+    environment: ${{ github.event.inputs.environment }}
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [build-manifests]
+
+    steps:
+      # Download the manifest from the artifacts of the previous Job
+      - name: Download a Development manifests
+        uses: actions/download-artifact@v3.0.0
+        with:
+          # Artifact name
+          name: 'init manifests'
+          # Destination path
+          path: './manifests'
+
+      # Login to Azure CLI
+      - name: Azure Login
+         uses: azure/login@v1
+         with:
+           creds: '${{ secrets.AZURE_CREDENTIALS }}'
+
+      # Get credentials and set K8S Cluster context
+      - name: Gets K8s context
+        uses: azure/aks-set-context@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          resource-group: ${{ secrets.RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.CLUSTER_NAME }}
+
+      # Create a secret for Kubernetes to be able to pull images from the GitHub Container Registry
+      - name: Set imagePullSecret
+        uses: Azure/k8s-create-secret@v2.1
+        with:
+          namespace: 'development'
+          secret-type: 'kubernetes.io/dockerconfigjson'
+          secret-name: 'cr-secret'
+          data: ${{ secrets.CR_PULL_SECRET }}
+        id: create-secret
+
+      # Deploys application based on manifest files from the artifacts
+      - name: Deploy application
+        uses: Azure/k8s-deploy@v3.1
+        with:
+          namespace: 'development'
+          action: deploy
+          manifests: './manifests'
+          imagepullsecrets: |
+            cr-secret
+
+      # Wait for the Kubernetes Job we deployed to finish
+      - name: Wait for Job to complete
+        run: |
+          kubectl wait --for=condition=complete --timeout=600s job/mssql-init -n development
+
+      # Clean up the completed Job from Kubernetes before the next time we need to deploy it
+      - name: Delete completed Job
+        run: |
+          kubectl delete job/mssql-init -n development

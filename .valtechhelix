@@ -1,0 +1,54 @@
+#############################################################
+#                                                           #
+#       Project/Platform specific docker env variables.     #
+#                                                           #
+#############################################################
+
+COMPOSE_PROJECT_NAME=valtechhelix
+
+SITECORE_DOCKER_REGISTRY=scr.sitecore.com
+SITECORE_VERSION=10.3-ltsc2019
+TRAEFIK_ISOLATION=hyperv
+ISOLATION=default
+SOLR_CORE_PREFIX_NAME=sitecore
+BUILD_CONFIGURATION=debug
+REGISTRY=
+ID_SERVER_CLI_CLIENT_SECRET=
+SITECORE_LICENSE=
+
+LOCAL_DEPLOY_PATH=.\docker\deploy\
+LOCAL_DATA_PATH=.\docker\data\
+
+TRAEFIK_IMAGE=traefik:v2.2.0-windowsservercore-1809
+DOCKERTOOLS_VERSION=10.2.7
+TOOLING_VERSION=10.2-1809
+SMS_VERSION=5.1-1809
+SITECORE_CLI_VERSION=5.1.25
+SOLUTION_BUILD_IMAGE=mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019
+HEADLESS_SERVICES_VERSION=21.0-1809
+SOLUTION_BASE_IMAGE=mcr.microsoft.com/windows/nanoserver:1809
+NETCORE_BUILD_IMAGE=mcr.microsoft.com/dotnet/sdk:6.0-windowsservercore-ltsc2019
+EXTERNAL_IMAGE_TAG_SUFFIX=ltsc2019
+
+CM_HOST=valtechhelix-cm.vh.localhost
+CD_HOST=valtechhelix-cd.vh.localhost
+ID_HOST=valtechhelix-id.vh.localhost
+RH_HOST=valtechhelix-rh.vh.localhost
+
+SQL_DATABASE_PREFIX=Sitecore
+SQL_CUSTOM_DATABASE_PREFIX_UPDATE_FROM=
+
+SITECORE_PLATFORM_NAME=ValtechHelix
+SOLUTION_NAME=ValtechHelix
+
+VHTOOLS_REPOSITORY=https://nuget.pkg.github.com/ENG-Valtech/
+VHTEMPLATES_VERSION=10.3.0.1
+VHSCRIPTS_VERSION=10.3.0.1
+VHTOOLS_REPOSITORY_USERNAME=
+VHTOOLS_REPOSITORY_PASSWORD=
+
+# Enable for JSS
+# NODEJS_PARENT_IMAGE=mcr.microsoft.com/windows/servercore:1809
+# NODEJS_VERSION=18.12.1
+# JSS_EDITING_SECRET=650292d7-5f1b-4e61-bb28-287eacb055e7
+# RENDERING_HOST_EDITING_ENDPOINT_URI=http://rendering:3000/api/editing/render

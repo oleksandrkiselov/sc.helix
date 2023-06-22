@@ -1,0 +1,1173 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: submit-queue
+parameters:
+  skuName: Standard_LRS
+provisioner: kubernetes.io/azure-file
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cd
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    app: cd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cm
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    app: cm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: id
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    app: id
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql
+spec:
+  ports:
+  - port: 1433
+    protocol: TCP
+  selector:
+    app: mssql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  ports:
+  - port: 6379
+    protocol: TCP
+  selector:
+    app: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: solr
+spec:
+  ports:
+  - port: 8983
+    protocol: TCP
+  selector:
+    app: solr
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: solr-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: managed-premium
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sql-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: managed-premium
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: submit-queue
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: submit-queue
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cd
+  name: cd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cd
+  template:
+    metadata:
+      labels:
+        app: cd
+    spec:
+      containers:
+      - env:
+        - name: Sitecore_InstanceName
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: Database_Server
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseservername.txt
+              name: sitecore-database
+        - name: Core_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-username.txt
+              name: sitecore-database
+        - name: Core_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-password.txt
+              name: sitecore-database
+        - name: Web_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-username.txt
+              name: sitecore-database
+        - name: Web_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-password.txt
+              name: sitecore-database
+        - name: Forms_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-username.txt
+              name: sitecore-database
+        - name: Forms_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-password.txt
+              name: sitecore-database
+        - name: Sitecore_License
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-license.txt
+              name: sitecore-license
+        - name: Sitecore_ConnectionStrings_Security
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Core;User
+            ID=$(Core_Database_Username);Password=$(Core_Database_Password);
+        - name: Sitecore_ConnectionStrings_Web
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Web;User
+            ID=$(Web_Database_Username);Password=$(Web_Database_Password);
+        - name: Sitecore_ConnectionStrings_ExperienceForms
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.ExperienceForms;User
+            ID=$(Forms_Database_Username);Password=$(Forms_Database_Password);
+        - name: Sitecore_ConnectionStrings_Solr.Search
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-connection-string.txt
+              name: sitecore-solr
+        - name: Sitecore_ConnectionStrings_Redis.Sessions
+          value: redis:6379,ssl=False,abortConnect=False
+        - name: SOLR_CORE_PREFIX_NAME
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-core-prefix-name.txt
+              name: sitecore-solr
+        - name: MEDIA_REQUEST_PROTECTION_SHARED_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-media-request-protection-shared-secret.txt
+              name: sitecore-protect-media-requests
+        image: ghcr.io/eng-valtech/valtechhelix-xm1-cd:0.0.1
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Liveness
+            path: /healthz/live
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+        name: sitecore-xm1-cd
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 3Gi
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+        startupProbe:
+          failureThreshold: 10
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Startup
+            path: /healthz/ready
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+        volumeMounts:
+        - mountPath: C:\inetpub\wwwroot\App_Data\Submit Queue
+          name: submit-queue
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+      volumes:
+      - name: submit-queue
+        persistentVolumeClaim:
+          claimName: submit-queue
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cm
+  name: cm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cm
+  template:
+    metadata:
+      labels:
+        app: cm
+    spec:
+      containers:
+      - env:
+        - name: Sitecore_InstanceName
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: Database_Server
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseservername.txt
+              name: sitecore-database
+        - name: Master_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-master-database-username.txt
+              name: sitecore-database
+        - name: Master_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-master-database-password.txt
+              name: sitecore-database
+        - name: Core_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-username.txt
+              name: sitecore-database
+        - name: Core_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-password.txt
+              name: sitecore-database
+        - name: Web_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-username.txt
+              name: sitecore-database
+        - name: Web_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-password.txt
+              name: sitecore-database
+        - name: Forms_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-username.txt
+              name: sitecore-database
+        - name: Forms_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-password.txt
+              name: sitecore-database
+        - name: Sitecore_ConnectionStrings_Sitecoreidentity.secret
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-identitysecret.txt
+              name: sitecore-identity
+        - name: Sitecore_AppSettings_Telerik.AsyncUpload.ConfigurationEncryptionKey
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-telerikencryptionkey.txt
+              name: sitecore-telerik
+        - name: Sitecore_AppSettings_Telerik.Upload.ConfigurationHashKey
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-telerikencryptionkey.txt
+              name: sitecore-telerik
+        - name: Sitecore_AppSettings_Telerik.Web.UI.DialogParametersEncryptionKey
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-telerikencryptionkey.txt
+              name: sitecore-telerik
+        - name: Sitecore_License
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-license.txt
+              name: sitecore-license
+        - name: Sitecore_ConnectionStrings_Core
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Core;User
+            ID=$(Core_Database_Username);Password=$(Core_Database_Password);
+        - name: Sitecore_ConnectionStrings_Security
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Core;User
+            ID=$(Core_Database_Username);Password=$(Core_Database_Password);
+        - name: Sitecore_ConnectionStrings_Master
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Master;User
+            ID=$(Master_Database_Username);Password=$(Master_Database_Password);
+        - name: Sitecore_ConnectionStrings_Web
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Web;User
+            ID=$(Web_Database_Username);Password=$(Web_Database_Password);
+        - name: Sitecore_ConnectionStrings_ExperienceForms
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.ExperienceForms;User
+            ID=$(Forms_Database_Username);Password=$(Forms_Database_Password);
+        - name: Sitecore_ConnectionStrings_Solr.Search
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-connection-string.txt
+              name: sitecore-solr
+        - name: Sitecore_Processing_Service_Require_Https
+          value: "false"
+        - name: SITECORE_HOSTNAME_CM
+          valueFrom:
+            configMapKeyRef:
+              key: SITECORE_HOSTNAME_CM
+              name: environment-config-map
+        - name: SITECORE_HOSTNAME_ID
+          valueFrom:
+            configMapKeyRef:
+              key: SITECORE_HOSTNAME_ID
+              name: environment-config-map
+        - name: Sitecore_Identity_Server_Authority
+          value: https://$(SITECORE_HOSTNAME_ID)
+        - name: Sitecore_Identity_Server_CallbackAuthority
+          value: https://$(SITECORE_HOSTNAME_CM)
+        - name: Sitecore_Identity_Server_InternalAuthority
+          value: http://id
+        - name: Sitecore_Identity_Server_Require_Https
+          value: "false"
+        - name: SOLR_CORE_PREFIX_NAME
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-core-prefix-name.txt
+              name: sitecore-solr
+        - name: MEDIA_REQUEST_PROTECTION_SHARED_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-media-request-protection-shared-secret.txt
+              name: sitecore-protect-media-requests
+        image: ghcr.io/eng-valtech/valtechhelix-xm1-cm:0.0.1
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Liveness
+            path: /healthz/live
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+        name: sitecore-xm1-cm
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 3Gi
+          requests:
+            cpu: 1000m
+            memory: 800Mi
+        startupProbe:
+          failureThreshold: 10
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Startup
+            path: /healthz/ready
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: id
+  name: id
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: id
+  template:
+    metadata:
+      labels:
+        app: id
+    spec:
+      containers:
+      - env:
+        - name: Database_Server
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseservername.txt
+              name: sitecore-database
+        - name: Core_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-username.txt
+              name: sitecore-database
+        - name: Core_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-password.txt
+              name: sitecore-database
+        - name: Sitecore_Sitecore__IdentityServer__Clients__PasswordClient__ClientSecrets__ClientSecret1
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-identitysecret.txt
+              name: sitecore-identity
+        - name: Sitecore_Sitecore__IdentityServer__CertificateRawData
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-identitycertificate.txt
+              name: sitecore-identitycertificate
+        - name: Sitecore_Sitecore__IdentityServer__CertificateRawDataPassword
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-identitycertificatepassword.txt
+              name: sitecore-identitycertificate
+        - name: Sitecore_License
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-license.txt
+              name: sitecore-license
+        - name: Sitecore_Sitecore__IdentityServer__SitecoreMemberShipOptions__ConnectionString
+          value: Data Source=$(Database_Server);Initial Catalog=Sitecore.Core;User
+            ID=$(Core_Database_Username);Password=$(Core_Database_Password);
+        - name: SITECORE_HOSTNAME_CM
+          valueFrom:
+            configMapKeyRef:
+              key: SITECORE_HOSTNAME_CM
+              name: environment-config-map
+        - name: SITECORE_HOSTNAME_ID
+          valueFrom:
+            configMapKeyRef:
+              key: SITECORE_HOSTNAME_ID
+              name: environment-config-map
+        - name: Sitecore_Sitecore__IdentityServer__AccountOptions__PasswordRecoveryUrl
+          value: https://$(SITECORE_HOSTNAME_CM)/sitecore/login?rc=1
+        - name: Sitecore_Sitecore__IdentityServer__Clients__DefaultClient__AllowedCorsOrigins__AllowedCorsOriginsGroup1
+          value: https://$(SITECORE_HOSTNAME_CM)
+        - name: Sitecore_Sitecore__IdentityServer__PublicOrigin
+          value: https://$(SITECORE_HOSTNAME_ID)
+        image: ghcr.io/eng-valtech/valtechhelix-id:0.0.1
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Liveness
+            path: /healthz/live
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+        name: sitecore-id
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 200m
+            memory: 1Gi
+          requests:
+            cpu: 50m
+            memory: 400Mi
+        startupProbe:
+          failureThreshold: 10
+          httpGet:
+            httpHeaders:
+            - name: X-Kubernetes-Probe
+              value: Startup
+            path: /healthz/ready
+            port: 80
+          periodSeconds: 30
+          timeoutSeconds: 300
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mssql
+  name: mssql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mssql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mssql
+    spec:
+      containers:
+      - env:
+        - name: SQL_SERVER
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseservername.txt
+              name: sitecore-database
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databasepassword.txt
+              name: sitecore-database
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SITECORE_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-adminpassword.txt
+              name: sitecore-admin
+        image: ghcr.io/eng-valtech/valtechhelix-mssql-developer:0.0.1
+        name: mssql
+        ports:
+        - containerPort: 1433
+        resources:
+          limits:
+            cpu: "4"
+            memory: 6Gi
+          requests:
+            cpu: "2"
+            memory: 4Gi
+        volumeMounts:
+        - mountPath: C:\data
+          name: data
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: sql-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: redis
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - image: ghcr.io/eng-valtech/valtechhelix-redis:0.0.1
+        name: sitecore-redis
+        ports:
+        - containerPort: 6379
+        resources:
+          limits:
+            cpu: 500m
+            memory: 2500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      nodeSelector:
+        kubernetes.io/os: linux
+      volumes:
+      - emptyDir: {}
+        name: data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secrets-synchronizer
+spec:
+  selector:
+    matchLabels:
+      app: secrets-synchronizer
+  template:
+    metadata:
+      labels:
+        app: secrets-synchronizer
+    spec:
+      containers:
+      - args:
+        - infinity
+        command:
+        - sleep
+        image: docker.io/library/alpine:3.12.1
+        name: secrets-synchronizer
+        resources:
+          limits:
+            cpu: 50m
+            memory: 100Mi
+          requests:
+            cpu: 10m
+            memory: 20Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /mnt/secrets-store
+          name: secrets-store-inline
+          readOnly: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      volumes:
+      - csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: sitecore-secrets
+        name: secrets-store-inline
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: solr
+  name: solr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: solr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: solr
+    spec:
+      containers:
+      - env:
+        - name: SOLR_MODE
+          value: solrcloud
+        image: scr.sitecore.com/sxp/nonproduction/solr:8.11.2-ltsc2019
+        livenessProbe:
+          httpGet:
+            path: /solr/admin/info/system
+            port: 8983
+          initialDelaySeconds: 45
+          periodSeconds: 10
+        name: solr
+        ports:
+        - containerPort: 8983
+        readinessProbe:
+          httpGet:
+            path: /solr/admin/info/system
+            port: 8983
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: "1"
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: C:\data
+          name: data
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: solr-data
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mssql-init
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      containers:
+      - env:
+        - name: sitecore_admin_password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-adminpassword.txt
+              name: sitecore-admin
+        - name: SQL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databasepassword.txt
+              name: sitecore-database
+        - name: SQL_ADMIN_LOGIN
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseusername.txt
+              name: sitecore-database
+        - name: SQL_SERVER
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-databaseservername.txt
+              name: sitecore-database
+        - name: SQL_ELASTIC_POOL_NAME
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-database-elastic-pool-name.txt
+              name: sitecore-database
+        - name: Master_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-master-database-username.txt
+              name: sitecore-database
+        - name: Master_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-master-database-password.txt
+              name: sitecore-database
+        - name: Core_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-username.txt
+              name: sitecore-database
+        - name: Core_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-core-database-password.txt
+              name: sitecore-database
+        - name: Web_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-username.txt
+              name: sitecore-database
+        - name: Web_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-web-database-password.txt
+              name: sitecore-database
+        - name: Forms_Database_Username
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-username.txt
+              name: sitecore-database
+        - name: Forms_Database_Password
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-forms-database-password.txt
+              name: sitecore-database
+        image: ghcr.io/eng-valtech/valtechhelix-xm1-mssql-init:0.0.1
+        name: mssql-init
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+      restartPolicy: Never
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: solr-init
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      containers:
+      - env:
+        - name: SITECORE_SOLR_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-connection-string.txt
+              name: sitecore-solr
+        - name: SOLR_CORE_PREFIX_NAME
+          valueFrom:
+            secretKeyRef:
+              key: sitecore-solr-core-prefix-name.txt
+              name: sitecore-solr
+        image: ghcr.io/eng-valtech/valtechhelix-xm1-solr-init:0.0.1
+        name: solr-init
+      imagePullSecrets:
+      - name: sitecore-docker-registry
+      nodeSelector:
+        kubernetes.io/os: windows
+      restartPolicy: Never
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 32k
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: 120s
+    nginx.ingress.kubernetes.io/proxy-read-timeout: 120s
+    nginx.ingress.kubernetes.io/proxy-send-timeout: 120s
+  name: cd-ingress
+spec:
+  rules:
+  - host: cd.sitecore
+    http:
+      paths:
+      - backend:
+          service:
+            name: cd
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: 256m
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 32k
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: 120s
+    nginx.ingress.kubernetes.io/proxy-read-timeout: 120s
+    nginx.ingress.kubernetes.io/proxy-send-timeout: 120s
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  name: cm-ingress
+spec:
+  rules:
+  - host: cm.sitecore
+    http:
+      paths:
+      - backend:
+          service:
+            name: cm
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 32k
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  name: id-ingress
+spec:
+  rules:
+  - host: id.sitecore
+    http:
+      paths:
+      - backend:
+          service:
+            name: id
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sitecore-secrets
+spec:
+  parameters:
+    objects: |
+      array:
+        - |
+          objectName: sitecore-adminpassword
+          objectType: secret
+        - |
+          objectName: sitecore-databaseservername
+          objectType: secret
+        - |
+          objectName: sitecore-databaseusername
+          objectType: secret
+        - |
+          objectName: sitecore-databasepassword
+          objectType: secret
+        - |
+          objectName: sitecore-core-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-core-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-web-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-web-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-forms-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-forms-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-exm-master-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-exm-master-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-messaging-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-messaging-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-solr-connection-string
+          objectType: secret
+        - |
+          objectName: sitecore-solr-core-prefix-name
+          objectType: secret
+        - |
+          objectName: sitecore-media-request-protection-shared-secret
+          objectType: secret
+        - |
+          objectName: sitecore-marketing-automation-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-marketing-automation-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-reference-data-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-reference-data-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-collection-shardmapmanager-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-collection-shardmapmanager-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-processing-pools-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-processing-pools-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-solr-connection-string-xdb
+          objectType: secret
+        - |
+          objectName: sitecore-master-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-master-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-reporting-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-reporting-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-identitysecret
+          objectType: secret
+        - |
+          objectName: sitecore-telerikencryptionkey
+          objectType: secret
+        - |
+          objectName: sitecore-reportingapikey
+          objectType: secret
+        - |
+          objectName: sitecore-identitycertificate
+          objectType: secret
+        - |
+          objectName: sitecore-identitycertificatepassword
+          objectType: secret
+        - |
+          objectName: sitecore-processing-tasks-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-processing-tasks-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-processing-engine-storage-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-processing-engine-storage-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-processing-engine-tasks-database-username
+          objectType: secret
+        - |
+          objectName: sitecore-processing-engine-tasks-database-password
+          objectType: secret
+        - |
+          objectName: sitecore-jss-editing-secret
+          objectType: secret
+        - |
+          objectName: sitecore-jss-api-key
+          objectType: secret
+        - |
+          objectName: sitecore-database-elastic-pool-name
+          objectType: secret
+  provider: azure
+  secretObjects:
+  - data:
+    - key: sitecore-databaseservername.txt
+      objectName: sitecore-databaseservername
+    - key: sitecore-databaseusername.txt
+      objectName: sitecore-databaseusername
+    - key: sitecore-databasepassword.txt
+      objectName: sitecore-databasepassword
+    - key: sitecore-core-database-username.txt
+      objectName: sitecore-core-database-username
+    - key: sitecore-core-database-password.txt
+      objectName: sitecore-core-database-password
+    - key: sitecore-web-database-username.txt
+      objectName: sitecore-web-database-username
+    - key: sitecore-web-database-password.txt
+      objectName: sitecore-web-database-password
+    - key: sitecore-forms-database-username.txt
+      objectName: sitecore-forms-database-username
+    - key: sitecore-forms-database-password.txt
+      objectName: sitecore-forms-database-password
+    - key: sitecore-exm-master-database-username.txt
+      objectName: sitecore-exm-master-database-username
+    - key: sitecore-exm-master-database-password.txt
+      objectName: sitecore-exm-master-database-password
+    - key: sitecore-messaging-database-username.txt
+      objectName: sitecore-messaging-database-username
+    - key: sitecore-messaging-database-password.txt
+      objectName: sitecore-messaging-database-password
+    - key: sitecore-marketing-automation-database-username.txt
+      objectName: sitecore-marketing-automation-database-username
+    - key: sitecore-marketing-automation-database-password.txt
+      objectName: sitecore-marketing-automation-database-password
+    - key: sitecore-reference-data-database-username.txt
+      objectName: sitecore-reference-data-database-username
+    - key: sitecore-reference-data-database-password.txt
+      objectName: sitecore-reference-data-database-password
+    - key: sitecore-collection-shardmapmanager-database-username.txt
+      objectName: sitecore-collection-shardmapmanager-database-username
+    - key: sitecore-collection-shardmapmanager-database-password.txt
+      objectName: sitecore-collection-shardmapmanager-database-password
+    - key: sitecore-processing-pools-database-username.txt
+      objectName: sitecore-processing-pools-database-username
+    - key: sitecore-processing-pools-database-password.txt
+      objectName: sitecore-processing-pools-database-password
+    - key: sitecore-master-database-username.txt
+      objectName: sitecore-master-database-username
+    - key: sitecore-master-database-password.txt
+      objectName: sitecore-master-database-password
+    - key: sitecore-reporting-database-username.txt
+      objectName: sitecore-reporting-database-username
+    - key: sitecore-reporting-database-password.txt
+      objectName: sitecore-reporting-database-password
+    - key: sitecore-processing-tasks-database-username.txt
+      objectName: sitecore-processing-tasks-database-username
+    - key: sitecore-processing-tasks-database-password.txt
+      objectName: sitecore-processing-tasks-database-password
+    - key: sitecore-processing-engine-storage-database-username.txt
+      objectName: sitecore-processing-engine-storage-database-username
+    - key: sitecore-processing-engine-storage-database-password.txt
+      objectName: sitecore-processing-engine-storage-database-password
+    - key: sitecore-processing-engine-tasks-database-username.txt
+      objectName: sitecore-processing-engine-tasks-database-username
+    - key: sitecore-processing-engine-tasks-database-password.txt
+      objectName: sitecore-processing-engine-tasks-database-password
+    - key: sitecore-database-elastic-pool-name.txt
+      objectName: sitecore-database-elastic-pool-name
+    secretName: sitecore-database
+    type: Opaque
+  - data:
+    - key: sitecore-adminpassword.txt
+      objectName: sitecore-adminpassword
+    secretName: sitecore-admin
+    type: Opaque
+  - data:
+    - key: sitecore-identitysecret.txt
+      objectName: sitecore-identitysecret
+    secretName: sitecore-identity
+    type: Opaque
+  - data:
+    - key: sitecore-identitycertificate.txt
+      objectName: sitecore-identitycertificate
+    - key: sitecore-identitycertificatepassword.txt
+      objectName: sitecore-identitycertificatepassword
+    secretName: sitecore-identitycertificate
+    type: Opaque
+  - data:
+    - key: sitecore-telerikencryptionkey.txt
+      objectName: sitecore-telerikencryptionkey
+    secretName: sitecore-telerik
+    type: Opaque
+  - data:
+    - key: sitecore-reportingapikey.txt
+      objectName: sitecore-reportingapikey
+    secretName: sitecore-reporting
+    type: Opaque
+  - data:
+    - key: sitecore-solr-connection-string.txt
+      objectName: sitecore-solr-connection-string
+    - key: sitecore-solr-core-prefix-name.txt
+      objectName: sitecore-solr-core-prefix-name
+    secretName: sitecore-solr
+    type: Opaque
+  - data:
+    - key: sitecore-media-request-protection-shared-secret.txt
+      objectName: sitecore-media-request-protection-shared-secret
+    secretName: sitecore-protect-media-requests
+    type: Opaque
+  - data:
+    - key: sitecore-solr-connection-string-xdb.txt
+      objectName: sitecore-solr-connection-string-xdb
+    secretName: sitecore-solr-xdb
+    type: Opaque
+  - data:
+    - key: sitecore-jss-editing-secret.txt
+      objectName: sitecore-jss-editing-secret
+    - key: sitecore-jss-api-key.txt
+      objectName: sitecore-jss-api-key
+    secretName: sitecore-rendering
+    type: Opaque

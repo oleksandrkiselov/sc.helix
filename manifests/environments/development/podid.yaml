@@ -1,0 +1,4 @@
+- op: add
+  path: "/spec/template/metadata/labels/aadpodidbinding"
+  value:
+    id-ch-glbinf-sic-we-dev

@@ -1,0 +1,128 @@
+version: "2.4"
+
+services:
+
+  dotnetsdk:
+    isolation: ${ISOLATION}
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-dotnetsdk:${VERSION:-latest}
+    build:
+      context: ./docker/build/dotnetsdk
+      args:
+        BUILD_IMAGE: ${SOLUTION_BUILD_IMAGE}
+        NETCORE_BUILD_IMAGE: ${NETCORE_BUILD_IMAGE}
+    scale: 0
+
+  solution:
+    isolation: ${ISOLATION}
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-solution:${VERSION:-latest}
+    build:
+      context: ./
+      dockerfile: ./docker/build/solution/Dockerfile
+      args:
+        BASE_IMAGE: ${SOLUTION_BASE_IMAGE}
+        BUILD_IMAGE: ${SOLUTION_BUILD_IMAGE}
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}
+        SOLUTION_NAME: ${SOLUTION_NAME}
+    depends_on:
+      - dotnetsdk
+    scale: 0
+
+  traefik:
+    volumes:
+      - ./docker/traefik:C:/etc/traefik
+    depends_on:
+      id:
+        condition: service_healthy
+      cm:
+        condition: service_started
+        
+  mssql:
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-mssql-developer:${VERSION:-latest}
+    build:
+      context: ./docker/build/mssql
+      args:
+        BASE_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/nonproduction/mssql-developer:2017-${EXTERNAL_IMAGE_TAG_SUFFIX}
+    mem_limit: 2GB
+    volumes:
+      - ${LOCAL_DATA_PATH}\mssql:c:\data
+      
+  mssql-init:
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-xp1-mssql-init:${VERSION:-latest}
+    build:
+      context: ./docker/build/mssql-init
+      args:
+        BASE_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp1-mssql-init:${SITECORE_VERSION}
+ 
+  solr:
+    mem_limit: 1GB
+    volumes:
+      - ${LOCAL_DATA_PATH}\solr:c:\data
+
+  solr-init:
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-xp0-solr-init:${VERSION:-latest}
+    build:
+      context: ./docker/build/solr-init
+      args:
+        BASE_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-solr-init:${SITECORE_VERSION}
+      
+  id:
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-id:${VERSION:-latest}
+    build:
+      context: ./docker/build/id
+      args:
+        BASE_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-id7:${SITECORE_VERSION}
+        SOLUTION_IMAGE: ${REGISTRY}${COMPOSE_PROJECT_NAME}-solution:${VERSION:-latest}
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license\license.xml
+    volumes:
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    depends_on:
+      - solution
+      
+  cm:
+    image: ${REGISTRY}${COMPOSE_PROJECT_NAME}-xp0-cm:${VERSION:-latest}
+    build:
+      context: ./docker/build/cm
+      args:
+        BASE_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-cm:${SITECORE_VERSION}
+        SMS_IMAGE: ${SITECORE_DOCKER_REGISTRY}/sxp/modules/sitecore-management-services-xp1-assets:${SMS_VERSION}
+        TOOLING_IMAGE: ${SITECORE_DOCKER_REGISTRY}/tools/sitecore-docker-tools-assets:${TOOLING_VERSION}
+        SOLUTION_IMAGE: ${REGISTRY}${COMPOSE_PROJECT_NAME}-solution:${VERSION:-latest}
+    depends_on:
+      - solution
+    volumes:
+      - ${LOCAL_DEPLOY_PATH}\sitecore:C:\deploy
+      - ${LOCAL_DATA_PATH}\cm:C:\inetpub\wwwroot\App_Data\logs
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license\license.xml
+      SITECORE_DEVELOPMENT_PATCHES: CustomErrorsOff
+    entrypoint: powershell.exe -Command "& C:\tools\entrypoints\iis\Development.ps1"
+
+  xconnect:
+    image: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-xconnect:${SITECORE_VERSION}
+    volumes:
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license
+      
+  xdbsearchworker:
+    image: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-xdbsearchworker:${SITECORE_VERSION}
+    volumes:
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license\
+      
+  xdbautomationworker:
+    image: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-xdbautomationworker:${SITECORE_VERSION}
+    volumes:
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license\
+      
+  cortexprocessingworker:
+    image: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-cortexprocessingworker:${SITECORE_VERSION}
+    volumes:
+      - ${HOST_LICENSE_FOLDER}:c:\license
+    environment:
+      SITECORE_LICENSE_LOCATION: c:\license\
