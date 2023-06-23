@@ -21,11 +21,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Feature", "Feature", "{F180
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Identity", "Identity", "{F8344A1C-8F4D-4AE1-8A8A-CC01BECA3BED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ValtechHelix.Environment.Identity", "src\Environment\Identity\ValtechHelix.Environment.Identity.csproj", "{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "valhelix.Environment.Identity", "src\Environment\Identity\valhelix.Environment.Identity.csproj", "{F8DD20AE-80CA-4958-9467-E24AA81AB2BA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sitecore", "Sitecore", "{2B8DA2E9-C9AA-422F-894E-7345FD1ADCF1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ValtechHelix.Environment.Sitecore", "src\Environment\Sitecore\ValtechHelix.Environment.Sitecore.csproj", "{2424E8B4-0111-4306-9603-0D2702EA60C5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "valhelix.Environment.Sitecore", "src\Environment\Sitecore\valhelix.Environment.Sitecore.csproj", "{2424E8B4-0111-4306-9603-0D2702EA60C5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DefaultSite", "DefaultSite", "{23D520DF-EA24-4A8F-BA6D-09908960F719}"
 	ProjectSection(SolutionItems) = preProject

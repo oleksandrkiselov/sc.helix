@@ -6,7 +6,7 @@
         <SitecoreAssembliesToExclude Include="@(SitecoreAssemblies)" />
 
         <!-- Deployment project -->
-        <SitecoreAssembliesToExclude Include="ValtechHelix.Environment.Sitecore.dll" />
+        <SitecoreAssembliesToExclude Include="valhelix.Environment.Sitecore.dll" />
         <SitecoreAssembliesToExclude Include="Sitecore.LayoutService.dll" />
         <SitecoreAssembliesToExclude Include="Sitecore.LayoutService.Mvc.dll" />
     </ItemGroup>

@@ -97,7 +97,7 @@ services:
     environment:
       SITECORE_LICENSE_LOCATION: c:\license\license.xml
       SITECORE_DEVELOPMENT_PATCHES: CustomErrorsOff
-    entrypoint: powershell.exe -Command "& C:\tools\entrypoints\iis\Development.ps1"
+    entrypoint: powershell.exe -Command "& C:\\tools\\entrypoints\\iis\\Development.ps1"
 
   xconnect:
     image: ${SITECORE_DOCKER_REGISTRY}/sxp/sitecore-xp0-xconnect:${SITECORE_VERSION}

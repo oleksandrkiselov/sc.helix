@@ -10,8 +10,9 @@
     <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ValtechHelix.Environment.Sitecore</RootNamespace>
-    <AssemblyName>ValtechHelix.Environment.Sitecore</AssemblyName>
+    <RootNamespace>valhelix.Environment.Sitecore</RootNamespace>
+    <RepositoryUrl>https://github.com/ENG-Valtech/internal-sc-valtech-helix-templates</RepositoryUrl>
+    <AssemblyName>valhelix.Environment.Sitecore</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <UseIISExpress>true</UseIISExpress>
     <Use64BitIISExpress />
@@ -72,7 +73,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="App_Config\Include\Sitecore.Owin.Authentication.ClientCredentialsMapping.CLI.config" />
-    <None Include="ValtechHelix.Environment.Sitecore.wpp.targets" />
+    <None Include="valhelix.Environment.Sitecore.wpp.targets" />
     <None Include="Directory.Build.props" />
     <None Include="Properties\PublishProfiles\Local.pubxml" />
     <None Include="Web.config" />
